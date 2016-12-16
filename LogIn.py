@@ -1,6 +1,6 @@
-import BeautifulSoup, urllib, urllib2, httplib, re, requests, time, datetime
+import urllib, re, requests, time, datetime
 
-class LogIn:
+class LogIn(object):
 	### PUT EMAIL AND PASSWORD HERE AT OWN DISCRETION ###
 	username = ''
 	password = ''
@@ -9,25 +9,30 @@ class LogIn:
 	def __init__(self):
 		### Put a directory path here for a log of all the people you whoop on ###
 		self.my_dir="c:\Users\User 1\Desktop\\"
-		self.myfile = file( self.my_dir + "log.txt", 'w' )
+		self.myfile = file( self.my_dir + "LBlog.txt", 'w' )
 		self.timestamp(self.myfile,'Start')
 		###################################
 		self.session = requests.Session()
-
+		
 		self._zz = self.tryLogIn()
-		self._myPageUrl, self._menuUrls, self._openSocialId = self._myPage()
+		self._myPage()
 		
 	_menuUrls = []
 	
 	def _myPage(self):
 		s = self.session.get('Ask me for the link' + self._zz)
 		
-		sId = self._openSocialId(s)
+		self.QP = self.getQP(s)
+		self.SP = self.getSP(s)
+		self.maxQP = self._getMaxQP(s)
+		self.maxSP = self._getMaxSP(s)		
+		self.openSocialId = self._openSocialId(s)
+		self.myPageUrl = self._myPageUrl(s)
+		self.menuUrls = self._menuUrls(s,self._openSocialId)
 		
+	def _myPageUrl(self, s):
 		regex = re.compile('Ask me for the link')
 		
-		if not regex.findall(s.text) or not self._openSocialId:
-			return False
 		m = regex.findall(s.text)[0]
 		g = self.session.get(m)
 		
@@ -36,17 +41,21 @@ class LogIn:
 		myPageUrl = regex.findall(g.text)[0]
 		if myPageUrl:
 			self.timestamp(self.myfile,'MyPage URL Generated')
-			print "Ready to run!"
+			self.timestamp(self.myfile,('Current QP: ' + str(self.QP) + '/' + str(self.maxQP)))
+			self.timestamp(self.myfile,('Current SP: ' + str(self.SP) + '/' + str(self.maxSP)))
+			print datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S - ') + 'Ready to run!'
+			print 'Current QP: ' + str(self.QP) + '/' + str(self.maxQP)
+			print 'Current SP: ' + str(self.SP) + '/' + str(self.maxSP)
 		else:
 			self.myfile.write('Could not generate MyPage URL\n')
-		return myPageUrl, self._menuUrls(s,sId), sId
+		return myPageUrl
 		
 	def _menuUrls(self, s, id):
 		#Menu Links regex
 		regex = re.compile("javascript:iframeLink\('([^']+)'\);")
 		
 		#All matches are unicode strings and must be stringified
-		menuUrls = [ str('Ask me for the link' + id) for x in regex.findall(s.text) ]
+		menuUrls = [ str('Ask me for the link' + str(id)) for x in regex.findall(s.text) ]
 		return menuUrls
 		
 	
@@ -84,7 +93,7 @@ class LogIn:
 		
 		payload = {
 			'url':'Ask me for the link',
-			'httpMethod':'GET',
+			'Ask me for the link',
 			'headers':'',
 			'postData':'',
 			'authz':'signed',
@@ -106,7 +115,6 @@ class LogIn:
 		regex = re.compile('\\\\"zz\\\\":\\\\"([\w|\d]+)')
 
 		zz = regex.findall(g.text)[0]
-		#zz = regex.findall(g.text)[0] if regex.findall(g.text) else None
 		if zz:
 			self.timestamp(self.myfile,'ZZ Token')
 		else:
@@ -119,7 +127,6 @@ class LogIn:
 		regex = re.compile('<input type=\"hidden\" name=\"page\" value=\"([^\"]+)\"')
 		
 		page = regex.findall(response.text)[0]
-		#page = regex.findall(response.text)[0] if regex.findall(response.text) else None
 		if page:
 			self.timestamp(self.myfile,'Page Code')
 		else:
@@ -133,7 +140,6 @@ class LogIn:
 		regex = re.compile('<iframe src=\"(Ask me for the link')
 		
 		link = regex.findall(response.text)[0].replace('&amp;','&')
-		#link = regex.findall(response.text)[0].replace('&amp;','&') if regex.findall(response.text) else None
 		idx = (link.index('&st=') + 4) if '&st=' in link else None
 		idx2 = link[idx:].index('&') if '&' in link[idx:] else -1
 
@@ -144,7 +150,27 @@ class LogIn:
 		else:
 			self.myfile.write('Could not find gadget token\n')
 		return urllib.unquote(sub) #Convert stripped unicode chars
-
+		
+	def _getMaxQP(self,s):
+		regex = re.compile('<span>QP\ (\d+)\/(\d+)')
+		m = regex.search(s.text)
+		return m.group(2)
+	
+	def getQP(self,s):
+		regex = re.compile('<span>QP\ (\d+)\/')
+		m = regex.search(s.text)
+		return m.group(1)
+	
+	def _getMaxSP(self,s):
+		regex = re.compile('<span>SP\ (\d+)\/(\d+)')
+		m = regex.search(s.text)
+		return m.group(2)
+	
+	def getSP(self,s):
+		regex = re.compile('<span>SP\ (\d+)\/')
+		m = regex.search(s.text)
+		return m.group(1)
+	
 	def timestamp(self,file,str):
-		sttime = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S - ')
-		file.write(str + ': ' + sttime + '\n')
+		sttime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+		file.write(sttime + ': ' + str + '\n')
