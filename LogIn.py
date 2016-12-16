@@ -9,7 +9,12 @@ class LogIn(object):
 	def __init__(self):
 		### Put a directory path here for a log of all the people you whoop on ###
 		self.my_dir="c:\Users\User 1\Desktop\\"
+		# Pick this if you want a new file every time you start the script
 		self.myfile = file( self.my_dir + "LBlog.txt", 'w' )
+		# Pick this if you want to keep one gigantic log of all your attempts
+		#self.myfile = file( self.my_dir + "LBlog.txt", 'a' )
+		self.myfile.write('===============Start of Script===============\n')
+		self.myfile.write(datetime.datetime.now().strftime('%Y-%m-%d') + '\n')
 		self.timestamp(self.myfile,'Start')
 		###################################
 		self.session = requests.Session()
@@ -28,7 +33,7 @@ class LogIn(object):
 		self.maxSP = self._getMaxSP(s)		
 		self.openSocialId = self._openSocialId(s)
 		self.myPageUrl = self._myPageUrl(s)
-		self.menuUrls = self._menuUrls(s,self._openSocialId)
+		self.menuUrls = set(self._menuUrls(s,self.openSocialId))
 		
 	def _myPageUrl(self, s):
 		regex = re.compile('Ask me for the link')
@@ -172,5 +177,5 @@ class LogIn(object):
 		return m.group(1)
 	
 	def timestamp(self,file,str):
-		sttime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+		sttime = datetime.datetime.now().strftime('%H:%M:%S')
 		file.write(sttime + ': ' + str + '\n')
