@@ -20,12 +20,13 @@ class LogIn(object):
 		self.session = requests.Session()
 		
 		self._zz = self.tryLogIn()
+		self.url = 'Ask me for the link' + self._zz
 		self._myPage()
 		
 	_menuUrls = []
 	
 	def _myPage(self):
-		s = self.session.get('Ask me for the link' + self._zz)
+		s = self.session.get(self.url)
 		
 		self.QP = self.getQP(s)
 		self.SP = self.getSP(s)
