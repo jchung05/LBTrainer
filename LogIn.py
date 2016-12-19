@@ -1,7 +1,7 @@
 import urllib, re, requests, time, datetime
 
 class LogIn(object):
-	### PUT EMAIL AND PASSWORD HERE AT OWN DISCRETION ###
+	### PUT EMAIL AND PASSWORD HERE ###
 	username = ''
 	password = ''
 	###################################
@@ -10,9 +10,9 @@ class LogIn(object):
 		### Put a directory path here for a log of all the people you whoop on ###
 		self.my_dir="c:\Users\User 1\Desktop\\"
 		# Pick this if you want a new file every time you start the script
-		self.myfile = file( self.my_dir + "LBlog.txt", 'w' )
+		#self.myfile = file( self.my_dir + "LBlog.txt", 'w' )
 		# Pick this if you want to keep one gigantic log of all your attempts
-		#self.myfile = file( self.my_dir + "LBlog.txt", 'a' )
+		self.myfile = file( self.my_dir + "LBlog.txt", 'a' )
 		self.myfile.write('===============Start of Script===============\n')
 		self.myfile.write(datetime.datetime.now().strftime('%Y-%m-%d') + '\n')
 		self.timestamp(self.myfile,'Start')
@@ -39,12 +39,12 @@ class LogIn(object):
 	def _myPageUrl(self, s):
 		regex = re.compile('Ask me for the link')
 		
-		m = regex.findall(s.text)[0]
+		m = regex.search(s.text).group(0)
 		g = self.session.get(m)
 		
 		regex = re.compile('Ask me for the link')
 		
-		myPageUrl = regex.findall(g.text)[0]
+		myPageUrl = regex.search(g.text).group(0)
 		if myPageUrl:
 			self.timestamp(self.myfile,'MyPage URL Generated')
 			self.timestamp(self.myfile,('Current QP: ' + str(self.QP) + '/' + str(self.maxQP)))
@@ -69,7 +69,7 @@ class LogIn(object):
 		#Open Social Viewer ID regex
 		regex = re.compile('var opensocial_viewer_id\s*=\s*(\d+);')
 		
-		openSocialId = regex.findall(s.text)[0]
+		openSocialId = regex.search(s.text).group(1)
 		if openSocialId:
 			self.timestamp(self.myfile,'Social ID Established')
 		else:
@@ -78,7 +78,8 @@ class LogIn(object):
 
 		
 	def tryLogIn(self):
-		for i in range(10):
+		maxAttempts = 10
+		for i in range(maxAttempts):
 			zz = self._zzId()
 			if zz:
 				return zz
@@ -96,6 +97,7 @@ class LogIn(object):
 			'submit':'Login'
 			}
 		self.session.post('Ask me for the link',params=payload)
+		time.sleep(1)
 		
 		payload = {
 			'url':'Ask me for the link',
@@ -117,10 +119,11 @@ class LogIn(object):
 		}
 		#Retrieve thrown file with MyPage zz token
 		g = self.session.get('Ask me for the link',params=payload)
+		time.sleep(1)
 		
 		regex = re.compile('\\\\"zz\\\\":\\\\"([\w|\d]+)')
 
-		zz = regex.findall(g.text)[0]
+		zz = regex.search(g.text).group(1)
 		if zz:
 			self.timestamp(self.myfile,'ZZ Token')
 		else:
@@ -132,7 +135,7 @@ class LogIn(object):
 
 		regex = re.compile('<input type=\"hidden\" name=\"page\" value=\"([^\"]+)\"')
 		
-		page = regex.findall(response.text)[0]
+		page = regex.search(response.text).group(1)
 		if page:
 			self.timestamp(self.myfile,'Page Code')
 		else:
@@ -145,7 +148,7 @@ class LogIn(object):
 
 		regex = re.compile('<iframe src=\"(Ask me for the link')
 		
-		link = regex.findall(response.text)[0].replace('&amp;','&')
+		link = regex.search(response.text).group(1).replace('&amp;','&')
 		idx = (link.index('&st=') + 4) if '&st=' in link else None
 		idx2 = link[idx:].index('&') if '&' in link[idx:] else -1
 

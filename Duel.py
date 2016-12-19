@@ -21,31 +21,43 @@ Things you need to change on your own:
 '''
 
 class Duel(object):
+	### SET YOUR OWN BASIC AND HIGH RISK LEVEL LIMITS HERE ###
+	### THE SCRIPT WILL NOT FIGHT ANYONE HIGHER THAN THOSE LEVELS ###
+	levelLimit = 400
+	highLimit = 500
+	### SET HOW MANY FIGHTS YOU WANT ME TO DO ###
+	goal = 50
+	###################################	
+	totalFights = 0
+	timeOut = 0
+	
 	def __init__(self):
 		self.li = LogIn.LogIn()
 		self.duelLink = filter( lambda x: 'Ask me for the link' in x, self.li.menuUrls )[0]
 		self.itemLink = filter( lambda x: 'Ask me for the link' in x, self.li.menuUrls )[0]
+		self.deckLink = filter( lambda x: 'Ask me for the link' in x, self.li.menuUrls )[0]
 		
 		#Run one instance to check for your win streak prior to starting
 		s = self.li.session.get(self.getLink())
 		soup = BeautifulSoup(s.text)
-		self.currentStreak = self.getStreak(soup)
-		streakString = 'You have ' + str(self.currentStreak) + ' wins before starting' if self.currentStreak is not 1 else 'You have ' + str(self.currentStreak) + ' win before starting'
+		self.setStreak(soup)
+		streakString = 'You have ' + str(self.getStreak()) + ' wins before starting' if self.getStreak() is not 1 else 'You have ' + str(self.getStreak()) + ' win before starting'
 		print streakString
 		self.li.timestamp(self.li.myfile, streakString)
-		
-		self.levelLimit = 120
-		self.totalFights = 0
 		#self.promotion = False
 		
 	def loadLBPage(self,link):
+		#Remove your team before you generate the arena
+		self.unsetTeam()
 		s = self.li.session.get(self.getLink())
 		soup = BeautifulSoup(s.text)
 		divsoup = soup.find('div', { 'class' : 'duel-select-duelists-tab' })
 		
-		print self.getLink()
+		self.killYourself()
 		
-		if self.li.getSP(self.li.session.get(self.li.url)) < 20:
+		SP = self.li.getSP(self.li.session.get(self.li.url))
+		print 'Current SP: ' + str(SP)
+		if int(SP) < 20:
 			self.recoverSP()
 		
 		#Checks if you are currently fighting a promotion battle
@@ -57,63 +69,82 @@ class Duel(object):
 			self.li.timestamp(self.li.myfile, msg)
 			
 			#Start your promotion battle here
-			self.fightDuelist(promo)
+			self.fightDuelist(promo,'promo')
 			
 			#Checks if you won your promotion battle
 			self.didIWinPromo(divsoup)
 		else:
-			before = self.getStreak(soup)
+			before = self.getStreak()
 			duelist = self.analyzeDuelists(divsoup)
 			
 			if duelist.getLevel() < self.getLimit():
 				msg = 'Preparing to fight ' + duelist.getName() + ': Level ' + str(duelist.getLevel()) + '...'
 				print msg
+				self.setTeam()
 				self.li.timestamp(self.li.myfile, msg)
 				
-				time.sleep(1)
 				self.fightDuelist(duelist.getLink())
-							
-				after = self.getStreak(soup)
-				self.winOrLose(before,after, duelist.getName())
+				
+				self.setStreak(soup)
+				after = self.getStreak()
+				self.winOrLose(before,after,duelist.getName())
 			else:
-				msg = 'No viable candidates from this roster. Waiting 1 minute before continuing'
-				print msg
-				self.li.timestamp(self.li.myfile, msg)
-				time.sleep(60)
-				print 'Continuing'
+				if self.getTO() < 10:
+					msg = 'No viable candidates from this roster. Waiting 1 minute before continuing'
+					print msg
+					self.li.timestamp(self.li.myfile, msg)
+					time.sleep(60)
+					print 'Continuing'
+					self.setTO(self.getTO() + 1)
+				else:
+					msg = 'I couldn\'t find a reasonable opponent within the last 10 minutes. Consider changing your level limits. Exiting...'
+					self.defaultExit(msg)
 			
 	#Check if you won then inc totalFights if there was no error in connection
 	def winOrLose(self,b,a,name):
 		msg = ''
 		if b < a:
-			msg = 'WIN: You won against ' + name + '! Currently at a ' + self.currentStreak + ' win streak'
+			msg = '    WIN: You won against ' + name + '! Currently at a ' + str(a) + ' win streak'
 			self.li.timestamp(self.li.myfile, msg)
 			self.setTotal()
-		elif b > a:
-			msg = 'LOSE: You lost against ' + name
+		elif b > a or (a is 0 and b is 0):
+			msg = '    LOSE: You lost against ' + name
 			self.li.timestamp(self.li.myfile, msg)
 			self.setTotal()
 		else:
-			msg = 'ERROR: An error occurred attempting to fight ' + name
+			msg = '    ERROR: An error occurred attempting to fight ' + name
 			self.li.timestamp(self.li.myfile, msg)
 		print msg
-		print 'This script ran ' + str(self.getTotal()) + ' fights so far'
+		print '    This script ran ' + str(self.getTotal()) + ' fights so far'
 			
 	#Check if it is currently a promotion match
-	def isPromo(self,s):	
-		promo = s.find('a', { 'class' : 'duel-select-duelist-battle-btn' })['href']
+	def isPromo(self,s):
+		promo1 = s.find('a', href=re.compile('Ask me for the link'))
+		promo2 = s.find('a', href=re.compile('Ask me for the link'))
 		
-		return str(promo) if 'create_matching' in promo else None
+		promo = None
+		if promo1:
+			promo = promo1['href']
+		elif promo2:
+			promo = promo2['href']
+		return promo
 	
 	#Check for a win in promo battle and sleep for an hour if you did to avoid promoting
 	def didIWinPromo(self,s):
-		didI = s.body.find('div', { 'class' : 'duel-select-duelists-box duel-layout-box-blue' }).text
+		didI = s.find('div', { 'class' : 'duel-select-duelists-box duel-layout-box-blue' }).text
+		
+		msg = ''
 		
 		if '2' in str(didI):
-			self.li.timestamp(self.li.myfile, 'You lost a promotion battle. Continuing script.')
+			msg = 'You lost a promotion battle'
+			print msg
+			self.li.timestamp(self.li.myfile, msg)
 		else:
-			self.li.timestamp(self.li.myfile, 'Won a promotion battle, will sleep for an hour before continuing')
+			msg = 'Won a promotion battle, will sleep for an hour before continuing'
+			print msg
+			self.li.timestamp(self.li.myfile, msg)
 			time.sleep(3600)
+			print 'Continuing'
 		
 	#Parse the list of fighters to determine the lowest leveled one
 	def analyzeDuelists(self,s):
@@ -133,20 +164,24 @@ class Duel(object):
 		return self.Duelist(levels[weakest],players[weakest],links[weakest])
 	
 	#Take the link of a duelist and go to execute the fight link in the next page
-	def fightDuelist(self,url):
-		#<a class="duel-conf-battle-btn p0" href='Ask me for the link');return false;"></a>
-		time.sleep(1)
+	def fightDuelist(self,url,type='fight'):
+		time.sleep(.4)
+		s = self.li.session.get(url)
+		soup = BeautifulSoup(s.text)
+		
+		fightLink = soup.find('a', href=re.compile('^Ask me for the link']
+		
 		#Execute here
+		time.sleep(.4)
+		self.li.session.get(fightLink)
+		self.setTO(0)
 		
-		print url
-		
-	#This method is not needed if you just check streak count before and after a fight
-	def battleResults(self):
-		#href='Ask me for the link'
-		pass
+	
+	def getStreak(self):
+		return self.currentStreak
 	
 	#Retrieve the poorly encoded win streak value you need to check for a 100 streak
-	def getStreak(self,soup):
+	def setStreak(self,soup):
 		btns = soup.body.findAll('a', { 'class' : 'btn-common-02' })
 		link = btns[1]['href']
 		
@@ -160,26 +195,40 @@ class Duel(object):
 		g = self.li.session.get(link)
 		soup = BeautifulSoup(g.text)
 		taC = soup.find('p', {'class' : 'taC'})
-		streak = int(taC.find('span', {'class' : 'fc-red'}).text) if taC else 0
+		self.currentStreak = int(taC.find('span', {'class' : 'fc-red'}).text) if taC else 0
 		
-		return streak	
+		#return streak
 
 	#Recover SP if you have less than 20 SP	
 	#Exits program if you don't have any full SP pots
 	def recoverSP(self):
+		time.sleep(.4)
 		s = self.li.session.get(self.getILink())
 		soup = BeautifulSoup(s.text)
 		
 		regex = re.compile('Ask me for the link')
 		
-		m = regex.search(s.text).group(0))
+		m = regex.search(s.text).group(0)
 		
 		if m:
+			print '    Recovering SP'
+			self.li.timestamp(self.li.myfile, 'Recovering SP')
 			self.li.session.get('http://' + str(m))
 		else:
-			print 'You\'re out of SP pots, dummy! Exiting...'
+			print '    You\'re out of SP pots, dummy! Exiting...'
 			msg = 'Exiting due to lack of full SP pots. The script fought a total of ' + self.getTotal() + ' matches and the current streak is ' + self.getStreak() 
 			self.li.timestamp(self.li.myfile, msg)
+			
+	def killYourself(self):
+		if self.getStreak() >= 100:
+			message = 'Exiting out as you\'ve reached 100 wins. Don\'t forget to kill yourself!'
+			self.defaultExit(message)
+			
+	#A method for exiting out of the program after meeting your limit or timing out
+	def defaultExit(self,message):
+		print message
+		self.li.timestamp(self.li.myfile, message)
+		exit()
 		
 		
 	#The set of methods to set your units after you've won against lots of lower levels
@@ -191,16 +240,54 @@ class Duel(object):
 		
 	#The default set of methods to set your units when you start the script
 	def setTeam(self):
-		pass
+		s = self.li.session.get( self.deckLink )
+		soup = BeautifulSoup(s.text)
+		LIVE = soup.body.find('a', href = re.compile('Ask me for the link']
+		time.sleep(.4)
+		
+		s = self.li.session.get(LIVE)
+		soup = BeautifulSoup(s.text)
+		balanced = soup.body.findAll('form')[1].get('action')
+		
+		payload = {
+			'sort_1':'1'
+		}
+		s = self.li.session.post(balanced, params=payload)
+		print 'Fixed your team!'
+		time.sleep(.4)
+		
 	
 	def unsetTeam(self):
-		pass
+		s = self.li.session.get( self.deckLink )
+		soup = BeautifulSoup(s.text)
+		LIVE = soup.body.find('a', href = re.compile('Ask me for the link']
+		time.sleep(.4)
+		
+		s = self.li.session.get(LIVE)
+		soup = BeautifulSoup(s.text)
+		removeAll = soup.find('a', href = re.compile( 'Ask me for the link'))
+		
+		#If it doesn't exist, that means the team is already stripped
+		if removeAll:
+			s = self.li.session.get(removeAll['href'])
+			time.sleep(.4)
+			print 'Removed your team!'
+			
+		
+	def getGoal(self):
+		return self.goal
 		
 	def getLink(self):
 		return self.duelLink
 		
 	def getILink(self):
 		return self.itemLink
+		
+	def getTO(self):
+		return self.timeOut
+		
+	def setTO(self,value):
+		self.timeOut = value
 		
 	def getLimit(self):
 		return self.levelLimit
@@ -230,14 +317,5 @@ class Duel(object):
 			return self.link
 		
 duel = Duel()
-#duel.loadLBPage(duel.duelLink)
-duel.recoverSP()
-#duel.getStreak(duel.duelLink)
-'''
-li = LogIn.LogIn()
-len(li.menuUrls)
-for url in li.menuUrls:
-	print url'''
-	
-#members = [attr for attr in dir(Duel()) if not callable(attr) and not attr.startswith("__")]
-#print members   
+while duel.getTotal() < duel.getGoal():
+	duel.loadLBPage(duel.duelLink)
