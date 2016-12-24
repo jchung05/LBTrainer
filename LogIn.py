@@ -18,6 +18,8 @@ class LogIn(object):
 		self.timestamp(self.myfile,'Start')
 		###################################
 		self.session = requests.Session()
+		a = requests.adapters.HTTPAdapter(max_retries=3)
+		self.session.mount('Ask me for the link',a)
 		
 		self._zz = self.tryLogIn()
 		self.url = 'Ask me for the link' + self._zz
@@ -49,9 +51,9 @@ class LogIn(object):
 			self.timestamp(self.myfile,'MyPage URL Generated')
 			self.timestamp(self.myfile,('Current QP: ' + str(self.QP) + '/' + str(self.maxQP)))
 			self.timestamp(self.myfile,('Current SP: ' + str(self.SP) + '/' + str(self.maxSP)))
-			print datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S - ') + 'Ready to run!'
-			print 'Current QP: ' + str(self.QP) + '/' + str(self.maxQP)
-			print 'Current SP: ' + str(self.SP) + '/' + str(self.maxSP)
+			print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S - ') + 'Ready to run!')
+			print('Current QP: ' + str(self.QP) + '/' + str(self.maxQP))
+			print('Current SP: ' + str(self.SP) + '/' + str(self.maxSP))
 		else:
 			self.myfile.write('Could not generate MyPage URL\n')
 		return myPageUrl
@@ -128,6 +130,7 @@ class LogIn(object):
 			self.timestamp(self.myfile,'ZZ Token')
 		else:
 			self.myfile.write('Could not find zz token\n')
+		
 		return zz
 		
 	def _pageCode(self):
@@ -146,7 +149,7 @@ class LogIn(object):
 		#Open IWZ
 		response = self.session.get('Ask me for the link')
 
-		regex = re.compile('<iframe src=\"(Ask me for the link')
+		regex = re.compile('\"(Ask me for the link')
 		
 		link = regex.search(response.text).group(1).replace('&amp;','&')
 		idx = (link.index('&st=') + 4) if '&st=' in link else None
