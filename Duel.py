@@ -21,15 +21,18 @@ Things you need to change on your own:
 class Duel(object):
 	### SET YOUR OWN BASIC AND HIGH RISK LEVEL LIMITS HERE ###
 	### THE SCRIPT WILL NOT FIGHT ANYONE HIGHER THAN THOSE LEVELS ###
-	levelLimit = 350
+	levelLimit = 500
 	highLimit = 500
 	
 	### I AM CURRENTLY SET TO EXIT OUT AFTER YOU WIN 100 IN A ROW 
 	### CHANGE ME IF YOU WANT ME TO DO MORE THAN 1 FULL STREAK AT A TIME
 	multipleStreaks = False
 	
+	### Is this the first time you ran the script today?
+	firstRun = True
+	
 	### SET HOW MANY FIGHTS YOU WANT ME TO DO ###
-	goal = 100
+	goal = 300
 	###################################	
 	totalFights = 0
 	timeOut = 0
@@ -51,14 +54,12 @@ class Duel(object):
 		self.li.timestamp(self.li.myfile, streakString)
 		
 	def loadLBPage(self,link):
+		before = self.getStreak()
 		# Remove your team before you generate the arena
-		self.unsetTeam()
+		self.unsetTeam() if before < 100 else self.setTeam()
 		s = self.li.session.get(self.getLink())
 		soup = BeautifulSoup(s.text)
 		divsoup = soup.find('div', { 'class' : 'duel-select-duelists-tab' })
-		
-		#self.exit100() if not self.multipleStreaks else 
-		self.killYourself()
 		
 		SP = self.li.getSP(self.li.session.get(self.li.url))
 		print('Current SP: ' + str(SP))
@@ -69,13 +70,20 @@ class Duel(object):
 		promo = self.isPromo(divsoup)
 		# Checks if you won your last promotion battle
 		if promo:
-			if self.didIWinPromo(divsoup):			
+			if self.didIWinPromo(divsoup):	
+				self.promoStrip()
 				self.fightDuelist(promo,'promo')
+				self.setTeam()
+		elif before >= 100:
+			#self.exit100()# if not self.multipleStreaks else 
+			self.killYourself(divsoup)
+			self.setStreak(soup)
 		else:
-			before = self.getStreak()
 			duelist = self.analyzeDuelists(divsoup)
 			
-			if duelist and duelist.getLevel() < self.getLimit():
+			limit = 850 if (self.firstRun and self.totalFights < 15) else self.getLimit()
+			
+			if duelist and duelist.getLevel() < limit:
 				msg = 'Preparing to fight ' + duelist.getName() + ': Level ' + str(duelist.getLevel()) + '...'
 				print(msg)
 				self.setTeam()
@@ -147,13 +155,50 @@ class Duel(object):
 			time.sleep(3600)
 			print('Continuing')
 			return False
+			
+	# Take the very last units as your leaders for promotional battles to reduce the risk of winning
+	def promoStrip(self):
+		s = self.li.session.get( self.deckLink )
+		soup = BeautifulSoup(s.text)
+		LIVE = soup.body.find('a', href=re.compile('Ask me for the link'))
+		time.sleep(.2)
+		
+		s = self.li.session.get(LIVE['href'])
+		soup = BeautifulSoup(s.text)
+		ranks = soup.body.findAll('a', href=re.compile('Ask me for the link'))[2:]
+		ranks.insert(0,LIVE)
+		
+		for rank in ranks:
+			s = self.li.session.get( rank['href'] )
+			soup = BeautifulSoup(s.text)
+			leader = soup.find('a', href=re.compile('Ask me for the link'))
+			time.sleep(.2)
+			
+			# Select which unit you want
+			s = self.li.session.get(leader['href'])
+			soup = BeautifulSoup(s.text)
+			ul = soup.find('ul', {'class':'pc-pager-blue'})
+			last = ul.findAll('li')[-1].find('a')
+			time.sleep(.2)
+			
+			# Go to last page and extract the last unit as leaders
+			s = self.li.session.get(last['href'])
+			soup = BeautifulSoup(s.text)
+			lastUnit = soup.findAll('div', {'class':'image-card card-column-7 deck-table-cell'})[-1]
+			lastUnit = lastUnit.find('a', href=re.compile('Ask me for the link'))
+			time.sleep(.2)
+			
+			s = self.li.session.get(lastUnit['href'])
+			
+		print('Removed your team leaders for promo!')
+			
 		
 	# Parse the list of fighters to determine the lowest leveled one
 	def analyzeDuelists(self,s,lowest=True):
 		soup = s.findAll('div', {'class' : 'duel-select-duelists-box duel-layout-box-blue'})
 		
 		# Return None type if no units populate the roster
-		if not soup:
+		if not soup or 'There are not opponents' in soup[0].text:
 			return None
 		
 		levels = []
@@ -218,17 +263,28 @@ class Duel(object):
 		if m:
 			print('    Recovering SP')
 			self.li.timestamp(self.li.myfile, 'Recovering SP')
-			self.li.session.get('http://' + str(m))
+			self.li.session.get('Ask me for the link' + str(m))
 		else:
 			print('    You\'re out of SP pots, baka! Exiting...')
 			msg = 'Exiting due to lack of full SP pots. The script fought a total of ' + self.getTotal() + ' matches and the current streak is ' + self.getStreak() 
 			self.li.timestamp(self.li.myfile, msg)
 			
-	# A method which checks for streaks over 100 and attempts to kill you to reset it
-	def killYourself(self):
+	def exit100(self):
+	#def killYourself(self):
 		if self.getStreak() >= 100:
 			message = 'Exiting out as you\'ve reached 100 wins. Don\'t forget to kill yourself!'
 			self.defaultExit(message)
+
+	# A method which checks for streaks over 100 and attempts to kill you to reset it			
+	def killYourself(self,soup):
+		duelist = self.analyzeDuelists(soup,False)
+		
+		msg = 'This is a streak killing match. Preparing to fight ' + duelist.getName() + ': Level ' + str(duelist.getLevel()) + '...'
+		print(msg)
+		self.unsetTeam()
+		self.li.timestamp(self.li.myfile, msg)
+		
+		self.fightDuelist(duelist.getLink())
 			
 	# A method for exiting out of the program after meeting your limit or timing out
 	def defaultExit(self,message):
@@ -256,7 +312,7 @@ class Duel(object):
 		balanced = soup.body.findAll('form')[1].get('action')
 		
 		payload = {
-			'sort_21':'21'
+			'sort_1':'1'
 		}
 		s = self.li.session.post(balanced, params=payload)
 		print('Fixed your team!')
