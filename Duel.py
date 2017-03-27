@@ -21,7 +21,7 @@ Things you need to change on your own:
 class Duel(object):
 	### SET YOUR OWN BASIC AND HIGH RISK LEVEL LIMITS HERE ###
 	### THE SCRIPT WILL NOT FIGHT ANYONE HIGHER THAN THOSE LEVELS ###
-	levelLimit = 500
+	levelLimit = 570
 	highLimit = 500
 	
 	### I AM CURRENTLY SET TO EXIT OUT AFTER YOU WIN 100 IN A ROW 
@@ -32,7 +32,7 @@ class Duel(object):
 	firstRun = True
 	
 	### SET HOW MANY FIGHTS YOU WANT ME TO DO ###
-	goal = 300
+	goal = 600
 	###################################	
 	totalFights = 0
 	timeOut = 0
@@ -69,7 +69,13 @@ class Duel(object):
 		# Checks if you are currently fighting a promotion battle
 		promo = self.isPromo(divsoup)
 		# Checks if you won your last promotion battle
-		if promo:
+		if promo and before >= 100:
+			if self.didIWinPromo(divsoup):
+				self.unsetTeam()
+				self.promoStrip()
+				self.fightDuelist(promo,'promo')
+				self.setTeam()
+		elif promo:
 			if self.didIWinPromo(divsoup):	
 				self.promoStrip()
 				self.fightDuelist(promo,'promo')
@@ -81,7 +87,7 @@ class Duel(object):
 		else:
 			duelist = self.analyzeDuelists(divsoup)
 			
-			limit = 850 if (self.firstRun and self.totalFights < 15) else self.getLimit()
+			limit = 1200 if (self.firstRun and self.totalFights < 20) else self.getLimit()
 			
 			if duelist and duelist.getLevel() < limit:
 				msg = 'Preparing to fight ' + duelist.getName() + ': Level ' + str(duelist.getLevel()) + '...'
@@ -152,9 +158,19 @@ class Duel(object):
 			msg = 'Won a promotion battle, will sleep for an hour before continuing'
 			print(msg)
 			self.li.timestamp(self.li.myfile, msg)
-			time.sleep(3600)
+			
+			#Attempt a get request for the Home page every 5 minutes to prevent timeout
+			for _ in range(12):
+				self.stayAwake()
+			
 			print('Continuing')
 			return False
+			
+	def stayAwake(self):
+		time.sleep(300)
+		self.li.session.get(self.li.myPageUrl)
+		print('Preventing timeout')
+		
 			
 	# Take the very last units as your leaders for promotional battles to reduce the risk of winning
 	def promoStrip(self):
@@ -221,13 +237,17 @@ class Duel(object):
 		s = self.li.session.get(url)
 		soup = BeautifulSoup(s.text)
 		
-		fightLink = soup.find('a', href=re.compile('^Ask me for the link']
 		
-		# Execute fight here
-		time.sleep(.2)
-		self.li.session.get(fightLink)
-		self.setTO(0)
-
+		try:
+			fightLink = soup.find('a', href=re.compile('^Ask me for the link']
+			
+			# Execute fight here
+			time.sleep(.2)
+			self.li.session.get(fightLink)
+			self.setTO(0)
+		except TypeError:
+			print "Whoever this fucking guy is, he's fucking up the program. Ignoring him"
+			pass
 	
 	def getStreak(self):
 		return self.currentStreak
@@ -263,7 +283,7 @@ class Duel(object):
 		if m:
 			print('    Recovering SP')
 			self.li.timestamp(self.li.myfile, 'Recovering SP')
-			self.li.session.get('Ask me for the link' + str(m))
+			self.li.session.get('http://' + str(m))
 		else:
 			print('    You\'re out of SP pots, baka! Exiting...')
 			msg = 'Exiting due to lack of full SP pots. The script fought a total of ' + self.getTotal() + ' matches and the current streak is ' + self.getStreak() 
@@ -312,7 +332,7 @@ class Duel(object):
 		balanced = soup.body.findAll('form')[1].get('action')
 		
 		payload = {
-			'sort_1':'1'
+			'sort_21':'21'
 		}
 		s = self.li.session.post(balanced, params=payload)
 		print('Fixed your team!')
