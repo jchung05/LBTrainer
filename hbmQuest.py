@@ -18,24 +18,32 @@ class hbmQuest(AbstractQuest.AbstractQuest):
 	
 	# Gets the new hashed Stage link and returns the exec link
 	def enterStage(self,url):
-		#First character's link
-		self.execLink = self.findLink(self.returnSoup(url),'Ask me for the link')
-		#Second character's link
-		#self.execLink = self.findLink(self.returnSoup(url),'Ask me for the link')
+		try:
+			#First character's link
+			self.execLink = self.findLink(self.returnSoup(url),'Ask me for the link')
+			#Second character's link
+			#self.execLink = self.findLink(self.returnSoup(url),'Ask me for the link')
+		except:
+			print("Unexpected error, moving on")
+			pass
 		
 	# Gets the new hashed Stage exec link
 	def questExec(self,url):
-		s = self.li.session.get(url)
-		soup = BeautifulSoup(s.text).body
-		
-		# Place all your logical checks here
-		check = self.expCheck(soup)
-		if check and check > self.expLimit:
-			self.recoverQP(soup)
-		elif check and check < self.expLimit:
-			print 'You\'re very close to leveling. Recover your own pot and run this again.'
-			exit()
-		self.cheerCheck(soup)
+		try:
+			s = self.li.session.get(url)
+			soup = BeautifulSoup(s.text).body
+			
+			# Place all your logical checks here
+			check = self.expCheck(soup)
+			if check and check > self.expLimit:
+				self.recoverQP(soup)
+			elif check and check < self.expLimit:
+				print 'You\'re very close to leveling. Recover your own pot and run this again.'
+				exit()
+			self.cheerCheck(soup)
+		except:
+			print("Unexpected error, moving on")
+			pass
 		
 	def cheerCheck(self,soup):
 		cheer = soup.find(href=re.compile('Ask me for the link'))
@@ -60,18 +68,21 @@ class hbmQuest(AbstractQuest.AbstractQuest):
 	
 	# A new developer started working on this segment. Instead of a GET with the variables embedded in the URL, they changed it to a POST with hidden values.
 	def recoverQP(self,soup):		
-		pot = soup.find(action=re.compile('Ask me for the link'))
+		pot = soup.findAll(action=re.compile('Ask me for the link'))
 		
 		payload = {
 			'item_id':'1',
-			'use_num':'1'
+			'use_num':'1',
+			#'item_id':'2',
+			#'use_num':'3'
 		}
 		#self.enterStage(url) with the posted url
-		if pot and self.potItr < 5:
+		if pot and self.potItr < 10:
 			time.sleep(.2)
 			print('    Recovering QP...')
 			self.potItr += 1
-			s = self.li.session.post(pot['action'],params=payload)
+			#s = self.li.session.post(pot[0]['action'],params=payload)
+			s = self.li.session.post(pot[2]['action'],params=payload)
 			soup = BeautifulSoup(s.text).body
 			
 			#First character's link
@@ -87,7 +98,7 @@ class hbmQuest(AbstractQuest.AbstractQuest):
 		
 hbmQ = hbmQuest()
 
-while hbmQ.potItr < 5:
+while hbmQ.potItr < 10:
 	hbmQ.returnHome(hbmQ.li.myPageUrl)
 	time.sleep(.2)
 		

@@ -11,7 +11,6 @@ class GachaStats(object):
 		self.last_val = self.Gacha("N/A","N/A","N/A","N/A")
 #		self.timer = 0
 		
-		#self.li.myPageUrl
 		gachaLink = filter( lambda x: 'Ask me for the link'
 		
 		s = self.li.session.get( gachaLink )
@@ -86,14 +85,10 @@ class GachaStats(object):
 		print idx
 		
 		for i in range(idx,5):
-			#print gachas[i].getOwner(),gachas[i].getTimestamp(), gachas[i].getName()
 			self.gacha_dict[gachas[i].getTimestamp()].append(gachas[i])
-		#print self.gacha_dict
 			
 	# Check for a duplicate item
 	def dupeCheck(self,arr):
-		#print "\nDuplicate item"
-		#print self.last_val.getOwner(), self.last_val.getTimestamp(), self.last_val.getName()
 		for x in arr:
 			# Return the index if a duplicate is found
 			if (self.last_val.getOwner() == x.getOwner()) and (self.last_val.getTimestamp() == x.getTimestamp()) and (self.last_val.getName() == x.getName()):
@@ -104,9 +99,6 @@ class GachaStats(object):
 			else:
 				self.last_val = x
 				return 0
-			#print self.last_val.getOwner() == x.getOwner()
-			#print self.last_val.getTimestamp() == x.getTimestamp()
-			#print self.last_val.getName() == x.getName()
 		return 0
 		
 	class Gacha:

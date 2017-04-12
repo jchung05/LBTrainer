@@ -169,7 +169,6 @@ class Duel(object):
 	def stayAwake(self):
 		time.sleep(300)
 		self.li.session.get(self.li.myPageUrl)
-		print('Preventing timeout')
 		
 			
 	# Take the very last units as your leaders for promotional battles to reduce the risk of winning
